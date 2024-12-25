@@ -1,0 +1,39 @@
+#!/bin/bash
+set -euo pipefail
+
+# Read runtime configuration from instance metadata
+EXTERNAL_IP=$(curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip")
+SSL_CERT_PATH=$(curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/ssl_cert_path")
+SSL_KEY_PATH=$(curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/ssl_key_path")
+
+# Update nginx configuration
+cat > /etc/nginx/sites-available/vpn-portal << EOF
+server {
+    listen 443 ssl;
+    server_name ${EXTERNAL_IP};
+
+    ssl_certificate ${SSL_CERT_PATH};
+    ssl_certificate_key ${SSL_KEY_PATH};
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+
+    location / {
+        proxy_pass http://localhost:8081;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+
+server {
+    listen 80;
+    server_name ${EXTERNAL_IP};
+    return 301 https://\$host\$request_uri;
+}
+EOF
+
+# Restart nginx to apply changes
+systemctl restart nginx

@@ -1,0 +1,35 @@
+- name: Create Easy-RSA directory
+  file:
+    path: /etc/openvpn/easy-rsa
+    state: directory
+    mode: "0755"
+
+- name: Initialize PKI
+  command:
+    cmd: "{{ item }}"
+    chdir: /etc/openvpn/easy-rsa
+  with_items:
+    - ./easyrsa init-pki
+    - ./easyrsa build-ca nopass
+    - ./easyrsa build-server-full server nopass
+    - ./easyrsa gen-dh
+  args:
+    creates: /etc/openvpn/easy-rsa/pki/ca.crt
+
+- name: Copy OpenVPN server configuration
+  template:
+    src: server.conf.j2
+    dest: /etc/openvpn/server.conf
+    mode: "0644"
+
+- name: Set OpenVPN file permissions
+  file:
+    path: "/etc/openvpn/{{ item }}"
+    owner: www-data
+    group: www-data
+    mode: "{{ '0600' if 'key' in item else '0644' }}"
+  with_items:
+    - ca.crt
+    - server.crt
+    - server.key
+    - dh.pem

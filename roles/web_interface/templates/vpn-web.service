@@ -1,0 +1,18 @@
+[Unit]
+Description=OpenVPN Web Interface
+After=network.target
+Requires=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/ovpn-portal
+EnvironmentFile=/opt/ovpn-portal/.env
+ExecStart=/usr/bin/local/.bin/ovpn-portal
+Restart=always
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

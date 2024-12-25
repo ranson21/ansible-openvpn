@@ -1,0 +1,17 @@
+- name: Configure VPN Server
+  hosts: all
+  become: yes
+  vars:
+    ovpn_port: 1194
+
+  pre_tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+  roles:
+    - role: base
+    - role: openvpn
+    - role: nginx
+    - role: web_interface

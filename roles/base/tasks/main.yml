@@ -1,0 +1,21 @@
+- name: Install required packages
+  apt:
+    name:
+      - openvpn
+      - easy-rsa
+      - nginx
+      - python3-pip
+      - git
+      - make
+      - curl
+      - iptables-persistent
+    state: present
+    install_recommends: no
+
+- name: Enable IP forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    state: present
+    sysctl_file: /etc/sysctl.d/99-ip-forward.conf
+    reload: yes
