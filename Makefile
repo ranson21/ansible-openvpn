@@ -23,17 +23,17 @@ help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 install: ## Install Ansible dependencies
-	ansible-galaxy collection install -r requirements.yml
-	ansible-galaxy role install -r requirements.yml
-
-init: ## Initialize project and copy example configs
-	make install
-	cp -n inventory/group_vars/all.yml.example inventory/group_vars/all.yml || true
-	cp -n packer/vars.pkr.hcl.example packer/vars.pkr.hcl || true
+	ansible-galaxy collection install -r playbooks/requirements.yml
+	ansible-galaxy role install -r playbooks/requirements.yml
 
 validate: ## Run all validation checks
-	$(ANSIBLE_LINT) playbooks/*.yml roles/*
-	cd packer && $(PACKER) validate .
+	$(ANSIBLE_LINT) playbooks/*.yml
+	cd packer && $(PACKER) validate \
+		-var="project_id=$(GCP_PROJECT)" \
+		-var="region=$(GCP_REGION)" \
+		-var="zone=$(GCP_ZONE)" \
+		-var="network=$(NETWORK)" \
+		.
 
 clean: ## Clean up generated files
 	rm -rf packer/packer_cache
@@ -43,23 +43,23 @@ build-image: ## Build the GCP image with Packer
 	cd packer && $(PACKER) init .
 	cd packer && $(PACKER) build \
 		-var="project_id=$(GCP_PROJECT)" \
+		-var="region=$(GCP_REGION)" \
 		-var="zone=$(GCP_ZONE)" \
-		-var="network=$(NETWORK)" \
 		build.pkr.hcl
 
 build-image-debug: ## Build the GCP image with debug output
 	cd packer && PACKER_LOG=1 $(PACKER) build \
 		-var="project_id=$(GCP_PROJECT)" \
+		-var="region=$(GCP_REGION)" \
 		-var="zone=$(GCP_ZONE)" \
-		-var="network=$(NETWORK)" \
-		build.pkr.hcl
+		.
 
 quick-build: ## Build image without initialization
-	cd packer && $(PACKER) build \
+	cd packer && $(PACKER) build  \
 		-var="project_id=$(GCP_PROJECT)" \
+		-var="region=$(GCP_REGION)" \
 		-var="zone=$(GCP_ZONE)" \
-		-var="network=$(NETWORK)" \
-		build.pkr.hcl
+		.
 
 launch-test: ## Launch a test instance from the latest image
 	@echo "Creating test instance $(INSTANCE_NAME)..."

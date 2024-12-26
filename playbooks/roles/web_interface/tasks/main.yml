@@ -1,26 +1,26 @@
 - name: Set web interface permissions
-  file:
+  ansible.builtin.file:
     path: /opt/gcp-ovpn-portal
     owner: www-data
     group: www-data
-    recurse: yes
+    recurse: true
 
 - name: Install web interface dependencies
-  command:
-    cmd: pip install gcp-ovpn-portal
+  ansible.builtin.pip:
+    name: gcp-ovpn-portal
     chdir: /opt/gcp-ovpn-portal
   become_user: www-data
 
 - name: Install systemd service
-  template:
+  ansible.builtin.template:
     src: vpn-web.service.j2
     dest: /etc/systemd/system/vpn-web.service
     mode: "0644"
 
 - name: Enable and start services
-  systemd:
+  ansible.builtin.systemd:
     name: "{{ item }}"
-    enabled: yes
+    enabled: true
     state: started
   with_items:
     - vpn-web

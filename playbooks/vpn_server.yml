@@ -1,13 +1,14 @@
 - name: Configure VPN Server
-  hosts: all
-  become: yes
+  hosts: localhost
+  connection: local
+  become: true
   vars:
     ovpn_port: 1194
 
   pre_tasks:
     - name: Update apt cache
-      apt:
-        update_cache: yes
+      ansible.builtin.apt:
+        update_cache: true
         cache_valid_time: 3600
 
   roles:

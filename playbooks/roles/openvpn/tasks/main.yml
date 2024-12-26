@@ -1,11 +1,11 @@
 - name: Create Easy-RSA directory
-  file:
+  ansible.builtin.file:
     path: /etc/openvpn/easy-rsa
     state: directory
     mode: "0755"
 
 - name: Initialize PKI
-  command:
+  ansible.builtin.command:
     cmd: "{{ item }}"
     chdir: /etc/openvpn/easy-rsa
   with_items:
@@ -17,13 +17,13 @@
     creates: /etc/openvpn/easy-rsa/pki/ca.crt
 
 - name: Copy OpenVPN server configuration
-  template:
+  ansible.builtin.template:
     src: server.conf.j2
     dest: /etc/openvpn/server.conf
     mode: "0644"
 
 - name: Set OpenVPN file permissions
-  file:
+  ansible.builtin.file:
     path: "/etc/openvpn/{{ item }}"
     owner: www-data
     group: www-data
