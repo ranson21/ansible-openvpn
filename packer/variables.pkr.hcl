@@ -35,3 +35,9 @@ variable "base" {
   type    = string
   default = "ansible"
 }
+
+variable "image_version" {
+  description = "Version tag for the image. If not specified, timestamp will be used"
+  type        = string
+  default     = ""
+}

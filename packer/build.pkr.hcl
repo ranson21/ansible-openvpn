@@ -2,9 +2,11 @@ locals {
   user_dir  = "${var.home_path}/${var.user}"
   local_bin = "${local.user_dir}/.local/bin"
 
-  galaxy_command   = "/usr/bin/ansible-galaxy"
-  command          = "$HOME/.local/bin/ansible-playbook"
-  ansible_work_dir = "$HOME/ansible-temp"
+  galaxy_command    = "/usr/bin/ansible-galaxy"
+  command           = "$HOME/.local/bin/ansible-playbook"
+  ansible_work_dir  = "$HOME/ansible-temp"
+  formatted_version = var.image_version != "" ? replace(var.image_version, ".", "-") : ""
+  image_name        = coalesce(local.formatted_version, "{{timestamp}}")
 }
 
 
@@ -32,7 +34,7 @@ source "googlecompute" "vpn_server" {
   # temporary_key_pair_bits = 2048
   # wait_to_add_ssh_keys    = "20s"
 
-  image_name        = "vpn-server-{{timestamp}}"
+  image_name        = "vpn-server-v${local.image_name}"
   image_description = "OpenVPN server with web interface"
   image_family      = "vpn-server"
 
@@ -61,8 +63,8 @@ build {
   provisioner "shell" {
     inline = [
       "sudo apt-get update",
-      "sudo apt-get install -y python3.9 python3-pip",
-      "pip3 install --user ansible"
+      "sudo apt-get install -y python3.9 python3-pip python3-pexpect",
+      "pip3 install --user ansible pexpect"
     ]
   }
 
@@ -74,7 +76,7 @@ build {
 
     extra_arguments = [
       "--ssh-extra-args='o StrictHostKeyChecking=no'",
-      "-v",
+      "-vvv",
       "--extra-vars",
       "ansible_python_interpreter=/usr/bin/python3"
     ]

@@ -88,6 +88,7 @@ htmlcov/
 
 # Local dev environment
 .env*
+files
 
 # OS generated files
 .DS_Store

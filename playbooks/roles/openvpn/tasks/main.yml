@@ -1,35 +1,86 @@
-- name: Create Easy-RSA directory
-  ansible.builtin.file:
-    path: /etc/openvpn/easy-rsa
-    state: directory
-    mode: "0755"
+- name: Set EasyRSA directory variable
+  ansible.builtin.set_fact:
+    easyrsa_dir: /etc/openvpn/easy-rsa
+    openvpn_dir: /etc/openvpn
 
-- name: Initialize PKI
-  ansible.builtin.command:
-    cmd: "{{ item }}"
-    chdir: /etc/openvpn/easy-rsa
-  with_items:
-    - ./easyrsa init-pki
-    - ./easyrsa build-ca nopass
-    - ./easyrsa build-server-full server nopass
-    - ./easyrsa gen-dh
-  args:
-    creates: /etc/openvpn/easy-rsa/pki/ca.crt
+- name: Create OpenVPN PKI infrastructure
+  block:
+    - name: Copy easy-rsa files to OpenVPN directory
+      ansible.builtin.command:
+        cmd: make-cadir "{{ easyrsa_dir }}"
+      args:
+        creates: "{{ easyrsa_dir }}/easyrsa"
 
-- name: Copy OpenVPN server configuration
-  ansible.builtin.template:
-    src: server.conf.j2
-    dest: /etc/openvpn/server.conf
-    mode: "0644"
+    - name: Initialize PKI
+      ansible.builtin.command:
+        cmd: "./easyrsa init-pki"
+        chdir: "{{ easyrsa_dir }}"
+      args:
+        creates: "{{ easyrsa_dir }}/pki"
 
-- name: Set OpenVPN file permissions
-  ansible.builtin.file:
-    path: "/etc/openvpn/{{ item }}"
-    owner: www-data
-    group: www-data
-    mode: "{{ '0600' if 'key' in item else '0644' }}"
-  with_items:
-    - ca.crt
-    - server.crt
-    - server.key
-    - dh.pem
+    - name: Build CA
+      ansible.builtin.expect:
+        command: "./easyrsa build-ca nopass"
+        chdir: "{{ easyrsa_dir }}"
+        responses:
+          (.*)Common Name(.*): "ca"
+      args:
+        creates: "{{ easyrsa_dir }}/pki/ca.crt"
+
+    - name: Build Server Key/Certificate
+      ansible.builtin.expect:
+        command: "./easyrsa build-server-full server nopass"
+        chdir: "{{ easyrsa_dir }}"
+        responses:
+          (.*)Confirm request details(.*): "yes\n"
+      args:
+        creates: "{{ easyrsa_dir }}/pki/issued/server.crt"
+
+    - name: Generate Diffie-Hellman key
+      ansible.builtin.command:
+        cmd: "./easyrsa gen-dh"
+        chdir: "{{ easyrsa_dir }}"
+      args:
+        creates: "{{ easyrsa_dir }}/pki/dh.pem"
+
+    - name: Generate TLS auth key
+      ansible.builtin.command:
+        cmd: openvpn --genkey --secret ta.key
+        chdir: "{{ openvpn_dir }}"
+      args:
+        creates: "{{ openvpn_dir }}/ta.key"
+
+    - name: Copy OpenVPN server configuration and certificates
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        mode: "{{ item.mode | default('0644') }}"
+        remote_src: true
+        owner: www-data
+        group: www-data
+      loop:
+        - {
+            src: "{{ easyrsa_dir }}/pki/ca.crt",
+            dest: "{{ openvpn_dir }}/ca.crt",
+          }
+        - {
+            src: "{{ easyrsa_dir }}/pki/issued/server.crt",
+            dest: "{{ openvpn_dir }}/server.crt",
+          }
+        - {
+            src: "{{ easyrsa_dir }}/pki/private/server.key",
+            dest: "{{ openvpn_dir }}/server.key",
+            mode: "0600",
+          }
+        - {
+            src: "{{ easyrsa_dir }}/pki/dh.pem",
+            dest: "{{ openvpn_dir }}/dh.pem",
+          }
+
+    - name: Configure OpenVPN server
+      ansible.builtin.template:
+        src: server.conf.j2
+        dest: "{{ openvpn_dir }}/server.conf"
+        mode: "0644"
+        owner: www-data
+        group: www-data

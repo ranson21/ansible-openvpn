@@ -9,7 +9,6 @@
   ansible.builtin.pip:
     name: gcp-ovpn-portal
     chdir: /opt/gcp-ovpn-portal
-  become_user: www-data
 
 - name: Install systemd service
   ansible.builtin.template:
@@ -23,6 +22,62 @@
     enabled: true
     state: started
   with_items:
-    - vpn-web
     - openvpn@server
     - nginx
+# - name: Verify and start services
+#   block:
+#     - name: Reload systemd
+#       ansible.builtin.systemd:
+#         daemon_reload: yes
+
+#     - name: Try to start OpenVPN service
+#       ansible.builtin.systemd:
+#         name: openvpn@server
+#         enabled: true
+#         state: started
+#       register: openvpn_status
+#       ignore_errors: yes
+
+#     - name: Capture OpenVPN service status (on failure)
+#       ansible.builtin.shell: |
+#         systemctl status openvpn@server.service
+#         journalctl -u openvpn@server.service -n 50 --no-pager
+#       register: openvpn_debug
+#       when: openvpn_status is failed
+#       changed_when: false
+
+#     - name: Display OpenVPN debug info
+#       ansible.builtin.debug:
+#         msg: "{{ openvpn_debug.stdout_lines }}"
+#       when: openvpn_status is failed
+
+#     - name: Try to start VPN service
+#       ansible.builtin.systemd:
+#         name: vpn-web
+#         enabled: true
+#         state: started
+#       register: vpnweb_status
+#       ignore_errors: yes
+
+#     - name: Capture VPN service status (on failure)
+#       ansible.builtin.shell: |
+#         systemctl status vpn-web
+#         journalctl -u vpn-web -n 50 --no-pager
+#       register: vpnweb_debug
+#       when: vpnweb_status is failed
+#       changed_when: false
+
+#     - name: Display VPN debug info
+#       ansible.builtin.debug:
+#         msg: "{{ vpnweb_debug.stdout_lines }}"
+#       when: vpnweb_status is failed
+
+#     - name: Start remaining services
+#       ansible.builtin.systemd:
+#         name: "{{ item }}"
+#         enabled: true
+#         state: started
+#       loop:
+#         - nginx
+#         - vpn-web
+#       when: openvpn_status is success

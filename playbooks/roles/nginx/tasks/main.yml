@@ -25,3 +25,15 @@
     name: runtime-config
     enabled: true
     daemon_reload: true
+
+# Remove the default Nginx site
+- name: Remove default Nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+# Reload Nginx to apply the changes
+- name: Reload Nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: reloaded

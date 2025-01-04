@@ -9,6 +9,8 @@
       - make
       - curl
       - iptables-persistent
+      - certbot
+      - python3-certbot-nginx
     state: present
     install_recommends: false
 

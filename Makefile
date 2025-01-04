@@ -14,7 +14,9 @@ GCP_PROJECT ?= your-project-id
 GCP_REGION ?= us-central1
 GCP_ZONE ?= us-central1-a
 NETWORK ?= default
+SUBNETWORK ?= default
 DOMAIN ?= vpn.example.com
+IMAGE_VERSION ?= ""
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -34,6 +36,9 @@ validate: ## Run all validation checks
 		-var="zone=$(GCP_ZONE)" \
 		-var="network=$(NETWORK)" \
 		.
+
+generate-certs:
+	./config/gen_test_certs.sh
 
 clean: ## Clean up generated files
 	rm -rf packer/packer_cache
@@ -57,6 +62,7 @@ build-image-debug: ## Build the GCP image with debug output
 quick-build: ## Build image without initialization
 	cd packer && $(PACKER) build  \
 		-var="project_id=$(GCP_PROJECT)" \
+		-var="image_version=$(IMAGE_VERSION)" \
 		-var="region=$(GCP_REGION)" \
 		-var="zone=$(GCP_ZONE)" \
 		.
@@ -69,7 +75,12 @@ launch-test: ## Launch a test instance from the latest image
 		--machine-type=$(MACHINE_TYPE) \
 		--network=$(NETWORK) \
 		--image-family=vpn-server \
-		--image-project=$(GCP_PROJECT)
+		--image-project=$(GCP_PROJECT) \
+    --metadata=\
+client_id=$(CLIENT_ID),\
+domain_name=$(DOMAIN_NAME),\
+support_email=$(SERVER_ADMIN),\
+allowed_domain=$(ALLOWED_DOMAIN)
 
 delete-test: ## Delete the test instance
 	@echo "Deleting test instance $(INSTANCE_NAME)..."
