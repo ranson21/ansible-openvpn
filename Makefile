@@ -44,13 +44,20 @@ clean: ## Clean up generated files
 	rm -rf packer/packer_cache
 	rm -rf generated/*
 
+clean-images: ## Remove all built images except the latest
+	gcloud compute images list --filter="family:vpn-server" --sort-by=~creationTimestamp --format="value(name)" | tail -n +2 | xargs -I {} gcloud compute images delete {} --quiet
+
+list-images:
+	gcloud compute images list --filter="family:vpn-server" --format="table(name,family,creationTimestamp)"
+
 build-image: ## Build the GCP image with Packer
 	cd packer && $(PACKER) init .
 	cd packer && $(PACKER) build \
 		-var="project_id=$(GCP_PROJECT)" \
 		-var="region=$(GCP_REGION)" \
+		-var="image_version=$(IMAGE_VERSION)" \
 		-var="zone=$(GCP_ZONE)" \
-		build.pkr.hcl
+		.
 
 build-image-debug: ## Build the GCP image with debug output
 	cd packer && PACKER_LOG=1 $(PACKER) build \

@@ -1,1 +1,0 @@
-{{ lookup('file', 'nginx.conf') | replace('${external_ip}', ansible_default_ipv4.address) }}

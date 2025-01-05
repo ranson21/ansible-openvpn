@@ -1,3 +1,54 @@
+- name: Create OpenVPN admin group
+  ansible.builtin.group:
+    name: openvpn-admin
+    state: present
+
+- name: Add www-data user to OpenVPN admin group
+  ansible.builtin.user:
+    name: www-data
+    groups: openvpn-admin
+    append: yes
+
+- name: Set OpenVPN directory permissions
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+    group: openvpn-admin
+    mode: "0770" # rwx for owner and group, no permissions for others
+    recurse: true
+  with_items:
+    - /etc/openvpn
+    - /etc/openvpn/easy-rsa
+
+- name: Set setgid bit on OpenVPN directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+    group: openvpn-admin
+    mode: "2770" # The '2' sets the setgid bit for directories
+    state: directory
+  with_items:
+    - /etc/openvpn
+    - /etc/openvpn/easy-rsa
+
+- name: Set OpenVPN pki directory permissions (specifically for pki/)
+  ansible.builtin.file:
+    path: "/etc/openvpn/easy-rsa/pki"
+    owner: root
+    group: openvpn-admin
+    mode: "0770" # Ensure that the pki directory is writable by the group
+    recurse: true
+
+- name: Set OpenVPN pki file permissions
+  ansible.builtin.file:
+    path: "/etc/openvpn/easy-rsa/pki/{{ item }}"
+    owner: root
+    group: openvpn-admin
+    mode: "0660" # Files should be readable and writable by the group
+  with_items:
+    - serial
+    - index.txt
+
 - name: Set web interface permissions
   ansible.builtin.file:
     path: /opt/gcp-ovpn-portal
