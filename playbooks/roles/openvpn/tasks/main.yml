@@ -85,21 +85,50 @@
         owner: www-data
         group: www-data
 
-- name: Add POSTROUTING rule for NAT
-  ansible.builtin.command:
-    cmd: iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o ens4 -j MASQUERADE
+- name: Ensure iptables-persistent is installed
+  ansible.builtin.apt:
+    name: iptables-persistent
+    state: present
+  when: ansible_facts['os_family'] == "Debian"
 
-- name: Add FORWARD rule for tun0 -> ens4
-  ansible.builtin.command:
-    cmd: iptables -A FORWARD -i tun0 -o ens4 -j ACCEPT
+- name: Configure iptables NAT rules
+  ansible.builtin.iptables:
+    table: nat
+    chain: POSTROUTING
+    source: 10.8.0.0/24
+    out_interface: ens4
+    jump: MASQUERADE
+    state: present
+  register: iptables_nat
 
-- name: Add FORWARD rule for ens4 -> tun0
-  ansible.builtin.command:
-    cmd: iptables -A FORWARD -i ens4 -o tun0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+- name: Configure iptables FORWARD rules for VPN traffic
+  ansible.builtin.iptables:
+    chain: FORWARD
+    in_interface: "{{ item.in }}"
+    out_interface: "{{ item.out }}"
+    jump: ACCEPT
+    state: present
+    match: "{{ item.match | default(omit) }}"
+    ctstate: "{{ item.ctstate | default(omit) }}"
+  loop:
+    - { in: "tun0", out: "ens4" }
+    - {
+        in: "ens4",
+        out: "tun0",
+        match: "state",
+        ctstate: "RELATED,ESTABLISHED",
+      }
+  register: iptables_forward
 
-- name: Save iptables rules (for persistence)
-  ansible.builtin.shell:
-    cmd: "iptables-save > /etc/iptables/rules.v4"
-    creates: /etc/iptables/rules.v4 # Prevents the task from running if the file already exists
-  when: ansible_facts['distribution'] == "Debian" # Adjust according to your system
+- name: Save iptables rules if changes were made
+  ansible.builtin.shell: |
+    iptables-save > /etc/iptables/rules.v4
+    ip6tables-save > /etc/iptables/rules.v6
+  when: iptables_nat.changed or iptables_forward.changed
 
+- name: Ensure netfilter-persistent service is enabled and started
+  ansible.builtin.service:
+    name: netfilter-persistent
+    state: started
+    enabled: yes
+  when: ansible_facts['os_family'] == "Debian"
