@@ -34,7 +34,7 @@ source "googlecompute" "vpn_server" {
   # temporary_key_pair_bits = 2048
   # wait_to_add_ssh_keys    = "20s"
 
-  image_name        = "vpn-server-v${local.image_name}"
+  image_name        = "vpn-server-${local.image_name}"
   image_description = "OpenVPN server with web interface"
   image_family      = "vpn-server"
 
