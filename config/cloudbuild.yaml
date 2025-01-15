@@ -45,7 +45,7 @@ steps:
       - "--skip-asset"
     secretEnv: ["GITHUB_TOKEN"]
     id: "create-release"
-    waitFor: ["publish"]
+    waitFor: ["build"]
 
   # Update parent repo submodule
   - name: "us-central1-docker.pkg.dev/${PROJECT_ID}/docker/github-ops-builder"
