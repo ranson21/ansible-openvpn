@@ -24,7 +24,7 @@ steps:
     waitFor: ["get-version"]
 
   # Publish to PyPI if this is a merge to main
-  - name: "us-central1-docker.pkg.dev/${PROJECT_ID}/docker/dev-tools-builder:basic"
+  - name: "us-central1-docker.pkg.dev/${PROJECT_ID}/docker/dev-tools-builder:packer"
     entrypoint: "bash"
     args:
       - "-c"
