@@ -10,8 +10,6 @@
     src: configure-runtime.sh.j2
     dest: /usr/local/bin/configure-runtime
     mode: "0755"
-  vars:
-    nginx_conf_template: "{{ lookup('file', 'nginx.conf.j2') }}"
 
 # Create a systemd service to run the runtime configuration
 - name: Install runtime configuration service
@@ -37,3 +35,20 @@
   ansible.builtin.systemd:
     name: nginx
     state: reloaded
+
+- name: Install certificate renewal script
+  ansible.builtin.template:
+    src: templates/renew-certs.sh.j2
+    dest: /usr/local/bin/renew-certs.sh
+    mode: "0755"
+  become: true
+
+- name: Create a cron job for Certbot auto-renewal
+  ansible.builtin.cron:
+    name: "Certbot Auto-Renewal"
+    job: "/usr/local/bin/renew-certs.sh"
+    user: root
+    state: present
+    minute: 0
+    hour: 0
+  become: true

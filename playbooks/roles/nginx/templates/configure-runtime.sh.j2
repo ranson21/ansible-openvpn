@@ -7,13 +7,54 @@ CLIENT_ID=$(curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/c
 ALLOWED_DOMAIN=$(curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/allowed_domain")
 DOMAIN_NAME=$(curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/domain_name")
 SERVER_ADMIN=$(curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/server_admin")
+NETWORK_NAME=$(curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/network_name")
 
-# Get certificate (using --standalone because nginx isn't running yet)
-certbot certonly --standalone \
-  --non-interactive \
-  --agree-tos \
-  --email ${SERVER_ADMIN} \
-  --domains ${DOMAIN_NAME}
+# Create required directories
+mkdir -p /etc/letsencrypt/live/${DOMAIN_NAME}
+CERT_PATH="/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem"
+KEY_PATH="/etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem"
+
+# Function to get latest secret version
+get_latest_secret_version() {
+    local secret_id=$1
+    local latest_version=$(gcloud secrets versions list ${secret_id} --format="value(name)" --limit=1 2>/dev/null || echo "")
+    echo $latest_version
+}
+
+# Try to get existing certificates from Secret Manager
+CERT_SECRET_ID="${NETWORK_NAME}-ssl-cert"
+KEY_SECRET_ID="${NETWORK_NAME}-ssl-key"
+
+CERT_VERSION=$(get_latest_secret_version $CERT_SECRET_ID)
+KEY_VERSION=$(get_latest_secret_version $KEY_SECRET_ID)
+
+if [[ -n "$CERT_VERSION" && -n "$KEY_VERSION" ]]; then
+    echo "Found existing certificates in Secret Manager. Downloading..."
+
+    # Download certificate and key
+    gcloud secrets versions access latest --secret=$CERT_SECRET_ID > $CERT_PATH
+    gcloud secrets versions access latest --secret=$KEY_SECRET_ID > $KEY_PATH
+
+    # Set correct permissions
+    chmod 644 $CERT_PATH
+    chmod 600 $KEY_PATH
+else
+    echo "No existing certificates found. Requesting new certificates from Let's Encrypt..."
+
+    # Stop nginx temporarily for certbot
+    systemctl stop nginx || true
+
+    # Get new certificate
+    certbot certonly --standalone \
+        --non-interactive \
+        --agree-tos \
+        --email ${SERVER_ADMIN} \
+        --domains ${DOMAIN_NAME}
+
+    # Upload certificates to Secret Manager
+    gcloud secrets versions add $CERT_SECRET_ID --data-file=$CERT_PATH
+    gcloud secrets versions add $KEY_SECRET_ID --data-file=$KEY_PATH
+fi
 
 # Create environment file
 cat > /opt/gcp-ovpn-portal/.env <<EOF
@@ -22,14 +63,14 @@ ALLOWED_DOMAIN="${ALLOWED_DOMAIN}"
 EXTERNAL_IP="${EXTERNAL_IP}"
 EOF
 
-# Update nginx configuration using the Let's Encrypt certificates
+# Update nginx configuration
 cat > /etc/nginx/sites-available/vpn-portal << EOF
 server {
     listen 443 ssl;
     server_name ${DOMAIN_NAME};
 
-    ssl_certificate /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem;
+    ssl_certificate ${CERT_PATH};
+    ssl_certificate_key ${KEY_PATH};
 
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
@@ -52,12 +93,6 @@ server {
 EOF
 
 ln -sf /etc/nginx/sites-available/vpn-portal /etc/nginx/sites-enabled/
-
-# Temp disable nginx to run the test
-sudo systemctl stop nginx
-
-# Set up auto-renewal
-certbot renew --dry-run
 
 # Restart nginx to apply changes
 systemctl restart nginx

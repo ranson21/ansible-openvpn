@@ -1,0 +1,16 @@
+#!/bin/bash
+set -euo pipefail
+
+# Get metadata values
+DOMAIN_NAME=$(curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/domain_name")
+NETWORK_NAME=$(curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/network_name")
+
+# Attempt certificate renewal
+certbot renew --quiet
+
+# If renewal was successful, update secrets and reload nginx
+if [ $? -eq 0 ]; then
+    gcloud secrets versions add "${NETWORK_NAME}-ssl-cert" --data-file="/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem"
+    gcloud secrets versions add "${NETWORK_NAME}-ssl-key" --data-file="/etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem"
+    systemctl reload nginx
+fi

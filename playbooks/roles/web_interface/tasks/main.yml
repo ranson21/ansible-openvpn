@@ -1,3 +1,62 @@
+- name: Create OpenVPN admin group
+  ansible.builtin.group:
+    name: openvpn-admin
+    state: present
+
+- name: Add www-data user to OpenVPN admin group
+  ansible.builtin.user:
+    name: www-data
+    groups: openvpn-admin
+    append: yes
+
+- name: Set OpenVPN directory permissions
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+    group: openvpn-admin
+    mode: "0770" # rwx for owner and group, no permissions for others
+    recurse: true
+  with_items:
+    - /etc/openvpn
+    - /etc/openvpn/easy-rsa
+
+- name: Set setgid bit on OpenVPN directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+    group: openvpn-admin
+    mode: "2770" # The '2' sets the setgid bit for directories
+    state: directory
+  with_items:
+    - /etc/openvpn
+    - /etc/openvpn/easy-rsa
+
+- name: Set OpenVPN pki directory permissions (specifically for pki/)
+  ansible.builtin.file:
+    path: "/etc/openvpn/easy-rsa/pki"
+    owner: root
+    group: openvpn-admin
+    mode: "0770" # Ensure that the pki directory is writable by the group
+    recurse: true
+
+- name: Set OpenVPN pki file permissions
+  ansible.builtin.file:
+    path: "/etc/openvpn/easy-rsa/pki/{{ item }}"
+    owner: root
+    group: openvpn-admin
+    mode: "0660" # Files should be readable and writable by the group
+  with_items:
+    - serial
+    - index.txt
+
+- name: Create logs directory for vpn-web service
+  ansible.builtin.file:
+    path: /var/log/ovpn-portal
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755" # rwxr-xr-x
+
 - name: Set web interface permissions
   ansible.builtin.file:
     path: /opt/gcp-ovpn-portal
@@ -24,60 +83,3 @@
   with_items:
     - openvpn@server
     - nginx
-# - name: Verify and start services
-#   block:
-#     - name: Reload systemd
-#       ansible.builtin.systemd:
-#         daemon_reload: yes
-
-#     - name: Try to start OpenVPN service
-#       ansible.builtin.systemd:
-#         name: openvpn@server
-#         enabled: true
-#         state: started
-#       register: openvpn_status
-#       ignore_errors: yes
-
-#     - name: Capture OpenVPN service status (on failure)
-#       ansible.builtin.shell: |
-#         systemctl status openvpn@server.service
-#         journalctl -u openvpn@server.service -n 50 --no-pager
-#       register: openvpn_debug
-#       when: openvpn_status is failed
-#       changed_when: false
-
-#     - name: Display OpenVPN debug info
-#       ansible.builtin.debug:
-#         msg: "{{ openvpn_debug.stdout_lines }}"
-#       when: openvpn_status is failed
-
-#     - name: Try to start VPN service
-#       ansible.builtin.systemd:
-#         name: vpn-web
-#         enabled: true
-#         state: started
-#       register: vpnweb_status
-#       ignore_errors: yes
-
-#     - name: Capture VPN service status (on failure)
-#       ansible.builtin.shell: |
-#         systemctl status vpn-web
-#         journalctl -u vpn-web -n 50 --no-pager
-#       register: vpnweb_debug
-#       when: vpnweb_status is failed
-#       changed_when: false
-
-#     - name: Display VPN debug info
-#       ansible.builtin.debug:
-#         msg: "{{ vpnweb_debug.stdout_lines }}"
-#       when: vpnweb_status is failed
-
-#     - name: Start remaining services
-#       ansible.builtin.systemd:
-#         name: "{{ item }}"
-#         enabled: true
-#         state: started
-#       loop:
-#         - nginx
-#         - vpn-web
-#       when: openvpn_status is success
