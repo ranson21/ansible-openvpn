@@ -50,7 +50,7 @@ clean-images: ## Remove all built images except the latest
 list-images:
 	gcloud compute images list --filter="family:vpn-server" --format="table(name,family,creationTimestamp)"
 
-build-image: ## Build the GCP image with Packer
+build: ## Build the GCP image with Packer
 	cd packer && $(PACKER) init .
 	cd packer && $(PACKER) build \
 		-var="project_id=$(GCP_PROJECT)" \
